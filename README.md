@@ -33,7 +33,7 @@ A strongly typed Laravel integration for [Tamara](https://tamara.co/) online che
 ## Installation
 
 ```bash
-composer require yasserelgammal/laravel-tamara
+composer require yasser-elgammal/laravel-tamara
 php artisan vendor:publish --tag=tamara-config
 ```
 

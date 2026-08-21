@@ -1,5 +1,5 @@
 {
-    "name": "yasserelgammal/laravel-tamara",
+    "name": "yasser-elgammal/laravel-tamara",
     "description": "A strongly typed Tamara payment integration for Laravel.",
     "type": "library",
     "license": "MIT",
