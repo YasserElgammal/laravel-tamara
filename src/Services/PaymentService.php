@@ -2,7 +2,7 @@
 
 namespace YasserElgammal\Tamara\Services;
 
-use YasserElgammal\Tamara\DTOs\{Money,TamaraItemData,TamaraShippingInfoData};
+use YasserElgammal\Tamara\DTOs\{Money, TamaraItemData, TamaraShippingInfoData};
 use YasserElgammal\Tamara\Http\TamaraClient;
 
 final class PaymentService
