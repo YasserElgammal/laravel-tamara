@@ -16,16 +16,16 @@ final class TamaraClient
     }
 
     /** @param array<string,mixed> $payload @return array<string,mixed> */
-    public function post(string $path, array $payload = []): array
+    public function post(string $path, array $payload = [], int|float|null $timeout = null): array
     {
-        return $this->send('post', $path, $payload);
+        return $this->send('post', $path, $payload, $timeout);
     }
     
     /** @param array<string,mixed> $data @return array<string,mixed> */
-    private function send(string $method, string $path, array $data): array
+    private function send(string $method, string $path, array $data, int|float|null $timeout = null): array
     {
         $base = (string)config('tamara.api_url') ?: (config('tamara.environment') === 'production' ? 'https://api.tamara.co' : 'https://api-sandbox.tamara.co');
-        $request = $this->http->withToken(trim((string)config('tamara.api_token'), " \t\n\r\0\x0B\"'"))->acceptJson()->asJson()->timeout((int)config('tamara.timeout', 15));
+        $request = $this->http->withToken(trim((string)config('tamara.api_token'), " \t\n\r\0\x0B\"'"))->acceptJson()->asJson()->timeout($timeout ?? (int)config('tamara.timeout', 15));
         /** @var Response $response */ $response = $request->{$method}(rtrim($base, '/') . '/' . ltrim($path, '/'), $data);
         if (! $response->successful()) {
             $body = $response->json() ?: ['body' => $response->body()];

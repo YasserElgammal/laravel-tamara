@@ -2,12 +2,25 @@
 
 namespace YasserElgammal\Tamara;
 
-use YasserElgammal\Tamara\Builders\{CustomerBuilder, ItemBuilder, OrderBuilder};
-use YasserElgammal\Tamara\Services\{OrderService, PaymentService};
+use YasserElgammal\Tamara\Builders\{
+    CustomerBuilder,
+    ItemBuilder,
+    OrderBuilder
+};
+use YasserElgammal\Tamara\Services\{
+    EligibilityService,
+    OrderService,
+    PaymentService
+};
 
 final class TamaraManager
 {
-    public function __construct(private readonly OrderService $orders, private readonly PaymentService $payments) {}
+    public function __construct(
+        private readonly OrderService $orders,
+        private readonly PaymentService $payments,
+        private readonly EligibilityService $eligibility
+    ) {}
+    
     public function order(): OrderBuilder
     {
         return new OrderBuilder();
@@ -31,6 +44,11 @@ final class TamaraManager
     public function payments(): PaymentService
     {
         return $this->payments;
+    }
+
+    public function eligibility(): EligibilityService
+    {
+        return $this->eligibility;
     }
 
     public function isConfigured(): bool

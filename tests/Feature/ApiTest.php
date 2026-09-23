@@ -6,6 +6,7 @@ use Illuminate\Support\Facades\Http;
 use DateTimeImmutable;
 use YasserElgammal\Tamara\DTOs\TamaraShippingInfoData;
 use YasserElgammal\Tamara\Exceptions\ApiException;
+use YasserElgammal\Tamara\Exceptions\ValidationException;
 use YasserElgammal\Tamara\TamaraManager;
 use YasserElgammal\Tamara\Tests\{CreatesOrders, TestCase};
 
@@ -56,5 +57,34 @@ final class ApiTest extends TestCase
         Http::fake(['*/checkout/payment-types*' => Http::response(['available_payment_types' => [['name' => 'PAY_BY_INSTALMENTS']]])]);
         $data = $this->app->make(TamaraManager::class)->orders()->paymentTypes('SA', 250);
         $this->assertCount(1, $data['available_payment_types']);
+    }
+
+    public function test_checks_precheckout_eligibility_with_a_200ms_timeout(): void
+    {
+        Http::fake(['*/pre-checkout/v1/eligibility' => Http::response(['is_eligible' => false])]);
+
+        $result = $this->app->make(TamaraManager::class)->eligibility()->check(250, 'SAR', '966504591298');
+
+        $this->assertFalse($result->eligible());
+        $this->assertTrue($result->wasChecked);
+        Http::assertSent(fn ($request) => $request['order'] === ['amount' => 250.0, 'currency' => 'SAR']
+            && $request['customer'] === ['phone' => '966504591298']);
+    }
+
+    public function test_eligibility_omits_an_empty_phone_and_fails_open_without_a_response(): void
+    {
+        Http::fake(['*' => Http::failedConnection('Timed out')]);
+
+        $result = $this->app->make(TamaraManager::class)->eligibility()->check(100, 'AED');
+
+        $this->assertTrue($result->eligible());
+        $this->assertFalse($result->wasChecked);
+        Http::assertSent(fn ($request) => ! isset($request['customer']));
+    }
+
+    public function test_eligibility_rejects_an_unsupported_currency(): void
+    {
+        $this->expectException(ValidationException::class);
+        $this->app->make(TamaraManager::class)->eligibility()->check(100, 'USD');
     }
 }
