@@ -10,7 +10,7 @@ A strongly typed Laravel integration for [Tamara](https://tamara.co/) online che
 
 - Laravel auto-discovery and a convenient `Tamara` facade
 - Typed builders and DTOs for customers, items, addresses, and orders
-- Checkout sessions, payment types, order retrieval, and authorisation
+- Pre-checkout eligibility, checkout sessions, payment types, order retrieval, and authorisation
 - Full and partial capture with shipping information and fulfilled items
 - HS256 webhook signature verification and typed Laravel events
 - Atomic webhook deduplication through Laravel's cache
@@ -75,6 +75,27 @@ if (! Tamara::isConfigured()) {
 ```
 
 ## Create a checkout session
+
+Check eligibility before displaying Tamara. The endpoint has Tamara's recommended 200 ms timeout and fails open when it times out or cannot connect, so checkout latency does not hide Tamara unnecessarily:
+
+```php
+$eligibility = Tamara::eligibility()->check(
+    amount: $order->final_total,
+    currency: 'SAR',
+    phone: $user->full_phone,
+);
+
+if (! $eligibility->eligible()) {
+    // Hide or disable Tamara for this checkout.
+}
+
+// false means the request timed out or had no response; eligible() is true.
+$eligibility->wasChecked;
+```
+
+The phone number should use E.164 format (for example, `966501234567`). It may be omitted; Tamara then treats the customer as eligible. HTTP error responses still throw `ApiException`, while only a timeout or connection failure uses the documented fail-open behavior.
+
+Once eligible, create the checkout session:
 
 ```php
 use YasserElgammal\Tamara\DTOs\TamaraAddressData;
@@ -512,7 +533,7 @@ Before production, complete this flow with Tamara sandbox credentials:
 
 ## Current scope
 
-This release supports checkout creation, payment types, order retrieval, authorisation, capture, and webhooks. Cancel and refund API methods are not currently exposed.
+This release supports pre-checkout eligibility, checkout creation, payment types, order retrieval, authorisation, capture, and webhooks. Cancel and refund API methods are not currently exposed.
 
 ## Security
 
