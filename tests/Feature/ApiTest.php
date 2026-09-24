@@ -45,6 +45,76 @@ final class ApiTest extends TestCase
             && $r['shipping_info']['tracking_number'] === 'TRACK-100'
             && $r['items'][0]['reference_id'] === $item->referenceId);
     }
+
+    public function test_cancels_or_updates_an_authorised_order(): void
+    {
+        Http::fake(['*/orders/t-1/cancel' => Http::response(['status' => 'updated'])]);
+        $orders = $this->app->make(TamaraManager::class)->orders();
+        $item = $this->validOrder()->items[0];
+
+        $result = $orders->cancel('t-1', 300, 'SAR', 0, 100, 10, [$item]);
+
+        $this->assertSame('updated', $result['status']);
+        Http::assertSent(fn ($request) => $request->url() === 'https://api-sandbox.tamara.co/orders/t-1/cancel'
+            && $request['total_amount'] === ['amount' => 300.0, 'currency' => 'SAR']
+            && $request['shipping_amount'] === ['amount' => 0.0, 'currency' => 'SAR']
+            && $request['tax_amount'] === ['amount' => 100.0, 'currency' => 'SAR']
+            && $request['discount_amount'] === ['amount' => 10.0, 'currency' => 'SAR']
+            && $request['items'][0]['reference_id'] === $item->referenceId
+            && $request['items'][0]['discount_amount'] === ['amount' => 0.0, 'currency' => 'SAR']
+            && $request['items'][0]['tax_amount'] === ['amount' => 0.0, 'currency' => 'SAR']);
+    }
+
+    public function test_fully_refunds_a_captured_order(): void
+    {
+        Http::fake(['*/payments/simplified-refund/t-1' => Http::response([
+            'order_id' => 't-1',
+            'refund_id' => 'refund-1',
+            'capture_id' => 'capture-1',
+            'status' => 'fully_refunded',
+            'refunded_amount' => ['amount' => 300, 'currency' => 'SAR'],
+        ])]);
+
+        $result = $this->app->make(TamaraManager::class)->payments()->refund(
+            't-1',
+            300,
+            'Refund for order A123',
+            'SAR',
+            'merchant-refund-1',
+        );
+
+        $this->assertSame('fully_refunded', $result['status']);
+        $this->assertSame('refund-1', $result['refund_id']);
+        Http::assertSent(fn ($request) => $request->url() === 'https://api-sandbox.tamara.co/payments/simplified-refund/t-1'
+            && $request['total_amount'] === ['amount' => 300.0, 'currency' => 'SAR']
+            && $request['comment'] === 'Refund for order A123'
+            && $request['merchant_refund_id'] === 'merchant-refund-1');
+    }
+
+    public function test_partially_refunds_a_captured_order_without_a_merchant_refund_id(): void
+    {
+        Http::fake(['*/payments/simplified-refund/t-1' => Http::response([
+            'order_id' => 't-1',
+            'refund_id' => 'refund-2',
+            'capture_id' => 'capture-1',
+            'status' => 'partially_refunded',
+            'refunded_amount' => ['amount' => 100, 'currency' => 'SAR'],
+        ])]);
+
+        $result = $this->app->make(TamaraManager::class)->payments()->refund(
+            orderId: 't-1',
+            amount: 100,
+            comment: 'Partial refund for order A123',
+        );
+
+        $this->assertSame('partially_refunded', $result['status']);
+        $this->assertSame(100, $result['refunded_amount']['amount']);
+        Http::assertSent(fn ($request) => $request->url() === 'https://api-sandbox.tamara.co/payments/simplified-refund/t-1'
+            && $request['total_amount'] === ['amount' => 100.0, 'currency' => 'SAR']
+            && $request['comment'] === 'Partial refund for order A123'
+            && ! isset($request['merchant_refund_id']));
+    }
+
     public function test_exposes_api_and_authentication_failures(): void
     {
         Http::fake(['*' => Http::response(['message' => 'Unauthenticated'], 401)]);

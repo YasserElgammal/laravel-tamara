@@ -35,4 +35,28 @@ final class PaymentService
 
         return $this->client->post('/payments/capture', $payload);
     }
+
+    /**
+     * Refund all or part of a captured order.
+     *
+     * @return array<string,mixed>
+     */
+    public function refund(
+        string $orderId,
+        float|int $amount,
+        string $comment,
+        string $currency = 'SAR',
+        ?string $merchantRefundId = null,
+    ): array {
+        $payload = [
+            'total_amount' => (new Money((float) $amount, $currency))->toArray(),
+            'comment' => $comment,
+        ];
+
+        if ($merchantRefundId !== null && trim($merchantRefundId) !== '') {
+            $payload['merchant_refund_id'] = trim($merchantRefundId);
+        }
+
+        return $this->client->post('/payments/simplified-refund/' . $orderId, $payload);
+    }
 }
