@@ -199,6 +199,57 @@ $authorisedOrder = Tamara::orders()->authorise($tamaraOrderId);
 
 Authorise an approved order after receiving `order_approved`, unless auto-authorisation is enabled for your Tamara account.
 
+## Cancel or update an authorised order
+
+Cancel an authorised order before capture by setting its new total to zero, or pass the revised totals and remaining items to update it:
+
+```php
+use YasserElgammal\Tamara\Facades\Tamara;
+
+$tamaraOrderId = $order->tamara_order_id;
+
+// These are the items that will remain on the authorised order.
+$remainingItems = [
+    Tamara::item()
+        ->name('Laravel Course')
+        ->referenceId('COURSE-001')
+        ->sku('COURSE-001')
+        ->type('Digital')
+        ->quantity(1)
+        ->unitPrice(210)
+        ->currency('SAR')
+        ->build(),
+];
+
+// A total greater than zero updates the authorised order.
+$result = Tamara::orders()->cancel(
+    orderId: $tamaraOrderId,
+    totalAmount: 300,
+    currency: 'SAR',
+    shippingAmount: 0,
+    taxAmount: 100,
+    discountAmount: 10,
+    items: $remainingItems,
+);
+
+if (($result['status'] ?? null) === 'updated') {
+    $order->update(['total' => 300]);
+}
+
+// To cancel the entire authorised order before capture:
+$cancellation = Tamara::orders()->cancel(
+    orderId: $tamaraOrderId,
+    totalAmount: 0,
+    currency: 'SAR',
+    shippingAmount: 0,
+    taxAmount: 0,
+    discountAmount: 0,
+    items: [],
+);
+```
+
+Tamara returns a `canceled` or `updated` status according to the submitted total. This endpoint is only valid while the order is `authorised`, before capture or shipping.
+
 ## Capture a payment
 
 Capture an authorised payment when the order is shipped or fulfilled. Tamara requires shipping information; include fulfilled items for full or partial capture:
@@ -224,6 +275,33 @@ $capture = Tamara::payments()->capture(
 ```
 
 Do not ship based only on the browser success redirect. Use the verified webhook and remote order status as the source of truth.
+
+## Refund a captured order
+
+Use the simplified refund API after an order has been fully or partially captured. Pass the full captured amount for a full refund, or a smaller amount for a partial refund:
+
+```php
+use YasserElgammal\Tamara\Facades\Tamara;
+
+$refund = Tamara::payments()->refund(
+    orderId: $tamaraOrderId,
+    amount: 100,
+    comment: 'Partial refund for order A123',
+    currency: 'SAR',
+    merchantRefundId: 'REFUND-A123-1', // Optional internal reference.
+);
+
+if (($refund['status'] ?? null) === 'partially_refunded') {
+    $order->refunds()->create([
+        'tamara_refund_id' => $refund['refund_id'],
+        'tamara_capture_id' => $refund['capture_id'],
+        'amount' => $refund['refunded_amount']['amount'],
+        'currency' => $refund['refunded_amount']['currency'],
+    ]);
+}
+```
+
+Tamara returns `fully_refunded` when the entire captured balance has been refunded and `partially_refunded` when a balance remains. Store every returned `refund_id`, because an order can have multiple partial refunds.
 
 ## Webhooks
 
@@ -533,7 +611,7 @@ Before production, complete this flow with Tamara sandbox credentials:
 
 ## Current scope
 
-This release supports pre-checkout eligibility, checkout creation, payment types, order retrieval, authorisation, capture, and webhooks. Cancel and refund API methods are not currently exposed.
+This release supports pre-checkout eligibility, checkout creation, payment types, order retrieval, authorisation, cancellation/order amount updates, capture, simplified full and partial refunds, and webhooks.
 
 ## Security
 
